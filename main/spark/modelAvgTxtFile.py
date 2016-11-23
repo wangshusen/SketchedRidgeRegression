@@ -1,9 +1,7 @@
 # export SPARK_HOME="$HOME/Software/spark-2.0.2"
 # MASTER=local[10] $SPARK_HOME/bin/pyspark
-# ./bin/spark-submit ./examples/src/main/python/modelAvg.py \
-# --master local \
-# --num-executors 3 \
-# --driver-memory 4g
+# $SPARK_HOME/bin/spark-submit /Users/shusenwang/Documents/RidgeRegression/main/spark/modelAvgTxtFile.py --master local[7] 
+
 
 from __future__ import print_function
 
@@ -370,9 +368,9 @@ def runModelAvgSpark(rddLabelVectorTrain, rddLabelVectorTest, param):
 param = {'d': 90,
          'foldOfCrossValid': 5,
          'vecGamma': [1e-8, 1e-7, 1e-6, 1e-5, 1e-4],
-         'trainFileName': "/Users/shusenwang/Documents/Data/YearPredictionMSD",
-         'testFileName': "/Users/shusenwang/Documents/Data/YearPredictionMSD.t",
-         'numPartitions': 1000
+         'trainFileName': "/Users/shusenwang/Documents/RidgeRegression/resource/YearPredictionMSD",
+         'testFileName': "/Users/shusenwang/Documents/RidgeRegression/resource/YearPredictionMSD.t",
+         'numPartitions': 20
         }
 
 
@@ -416,4 +414,3 @@ if __name__ == "__main__":
     print('###############################')
 
     sc.stop()
-
