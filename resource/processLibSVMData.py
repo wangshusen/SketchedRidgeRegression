@@ -2,7 +2,8 @@ import numpy
 
 
 def parseRawDataUtil(idxValStr):
-    idxValPair = idxValStr[2:-1].split(':')
+    #idxValPair = idxValStr[2:-1].split(':')
+    idxValPair = idxValStr.split(':')
     return [int(idxValPair[0]), float(idxValPair[1])]
 
 def parseRawData(rawData, d):
