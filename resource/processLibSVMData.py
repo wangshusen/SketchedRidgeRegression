@@ -14,11 +14,8 @@ def parseRawData(rawData, d):
         labelVec[idxValPair[0]] = idxValPair[1]
     return labelVec
 
-
-if __name__ == '__main__':
-    inputFileName = 'YearPredictionMSD.t'
-    outputFileName = 'YearPredictionMSD.t.npy'
-    d = 90 # number of features
+def processLibSVMData(inputFileName, d):
+    outputFileName = inputFileName + '.npy'
     
     listArrayStr = numpy.loadtxt(inputFileName, dtype='str')
     n = len(listArrayStr)
@@ -28,3 +25,9 @@ if __name__ == '__main__':
         mat[i, :] = parseRawData(rawData, d)
     
     numpy.save(outputFileName, mat)
+    return mat
+
+if __name__ == '__main__':
+    inputFileName = 'YearPredictionMSD.t'
+    d = 90 # number of features
+    processLibSVMData(inputFileName, d)
