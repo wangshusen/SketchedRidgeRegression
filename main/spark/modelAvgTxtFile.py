@@ -11,6 +11,7 @@ from pyspark.sql import SparkSession
 import numpy
 import time
 
+# ================ Read raw data from text file ================ #
 
 def idxval2vec(idx, val, d):
     """
@@ -27,6 +28,36 @@ def idxval2vec(idx, val, d):
     vec[idx] = val
     return vec
 
+
+
+def parseRawDataSpark(filename, d, numPartitions=0):
+    """
+    Read data from a file and parse the raw data into an RDD of (label vector)-pairs
+    Input:
+        filename: String;
+            each line in the file is a (label, vector)-pair organized as follows:
+                2001  1:49.943569 4:8.748610 5:-17.406281 6:-13.099050 17:408.984863 36:-0.369940
+        d: Int, the dimension of the vector
+    Output:
+        rddLabelVector: RDD of (Float, d-dim NumPy Array)
+    """
+    # file to strings
+    if numPartitions == 0:
+        rddRawData = sc.textFile(filename)
+    elif numPartitions < 20:
+        rddRawData = sc.textFile(filename).repartition(numPartitions)
+    else:
+        rddRawData = sc.textFile(filename, minPartitions=numPartitions)
+        
+    rddSplitedData = rddRawData.map(lambda line: line.split())
+    # parse the strings to RDDs of (label, vector)
+    rddLabelVector = (rddSplitedData.map(lambda arr: (float(arr[0]), [a.split(':') for a in arr[1:]]))
+                 .map(lambda arr: (arr[0], [int(a[0])-1 for a in arr[1]], [float(a[1]) for a in arr[1]]))
+                 .map(lambda arr: (arr[0], idxval2vec(arr[1], arr[2], d)))
+                 )
+    return rddLabelVector
+
+# =================== Process the raw data =================== #
 
 def randPartition(n, k):
     '''
@@ -76,35 +107,6 @@ def list2mat(listLabelVec, k):
     return vecY, matX, idxPartition
 
 
-def parseRawDataSpark(filename, d, numPartitions=0):
-    """
-    Read data from a file and parse the raw data into an RDD of (label vector)-pairs
-    Input:
-        filename: String;
-            each line in the file is a (label, vector)-pair organized as follows:
-                2001  1:49.943569 4:8.748610 5:-17.406281 6:-13.099050 17:408.984863 36:-0.369940
-        d: Int, the dimension of the vector
-    Output:
-        rddLabelVector: RDD of (Float, d-dim NumPy Array)
-    """
-    # file to strings
-    if numPartitions == 0:
-        rddRawData = sc.textFile(filename)
-    elif numPartitions < 20:
-        rddRawData = sc.textFile(filename).repartition(numPartitions)
-    else:
-        rddRawData = sc.textFile(filename, minPartitions=numPartitions)
-        
-    rddSplitedData = rddRawData.map(lambda line: line.split())
-    # parse the strings to RDDs of (label, vector)
-    rddLabelVector = (rddSplitedData.map(lambda arr: (float(arr[0]), [a.split(':') for a in arr[1:]]))
-                 .map(lambda arr: (arr[0], [int(a[0])-1 for a in arr[1]], [float(a[1]) for a in arr[1]]))
-                 .map(lambda arr: (arr[0], idxval2vec(arr[1], arr[2], d)))
-                 )
-    return rddLabelVector
-
-
-
 def meanYmaxXSpark(rddLabelVector):
     """
     Input:
@@ -148,8 +150,9 @@ def preprocessSpark(rddLabelVector, foldOfCrossValid, meanY, maxX):
     return rddProcessed
     
 
+# ================ The training of ridge regression ================ #
     
-def trainMRR(matX, matY, vecGamma):
+def trainRR(matX, matY, vecGamma):
     '''
     Solve: argmin_W  1/n * || X W - Y ||_F^2 + gamma * || W ||_F^2
     Input
@@ -201,7 +204,7 @@ def kFoldTrain(matX, matY, idxPartition, vecGamma):
                 idxTrain = idxTrain + idxPartition[j]
         matXtrain = matX[idxTrain, :]
         matYtrain = matY[idxTrain, :]
-        models = trainMRR(matXtrain, matYtrain, vecGamma)
+        models = trainRR(matXtrain, matYtrain, vecGamma)
         listModels.append(models)
     return listModels
 
@@ -255,8 +258,6 @@ def kFoldCVSpark(rddTrain, vecGamma):
               .reduce(lambda a, b: [a[i] + b[i] for i in range(len(a))])
              )
     g = rddTrain.count()
-    print('#===========================#')
-    print('g = ' + str(g))
     listModels = [matW/g for matW in listModels]
     broadcastListModels = sc.broadcast(listModels)
     squaredError = (rddTrain.map(lambda a: kFoldValid(a[1], a[0], a[2], broadcastListModels.value))
@@ -280,7 +281,7 @@ def trainSpark(rddTrain, gamma):
     Output
         model: d-by-1 NumPy Array
     '''
-    model = (rddTrain.map(lambda a: trainMRR(a[1], a[0], [gamma]))
+    model = (rddTrain.map(lambda a: trainRR(a[1], a[0], [gamma]))
              .reduce(lambda a, b: a+b)
             )
     g = rddTrain.count()
@@ -325,10 +326,13 @@ def runModelAvgSpark(rddLabelVectorTrain, rddLabelVectorTest, param):
         result: a dictionary of the mean squared errors and the elapsed time
     '''
     # normalization and other pre-process of the training data
+    print('Processing the data...')
     meanY, maxX, nTrain = meanYmaxXSpark(rddLabelVectorTrain)
     rddTrain = preprocessSpark(rddLabelVectorTrain, param['foldOfCrossValid'], meanY, maxX).cache()
     rddTrain.count() # avoid lazy evaluation
+    
     # run k-fold cross-validation to find the best gamma
+    print(str(param['foldOfCrossValid']) + '-fold cross-validation...')
     t0 = time.time()
     listModels, squaredError = kFoldCVSpark(rddTrain, param['vecGamma'])
     t1 = time.time()
@@ -337,17 +341,21 @@ def runModelAvgSpark(rddLabelVectorTrain, rddLabelVectorTest, param):
     print(mseCV)
     idxOpt = numpy.argmin(squaredError)
     gammaOpt = param['vecGamma'][idxOpt]
+    
     # train the model using the optimal gamma
+    print("Training the model using the best gamma...")
     t2 = time.time()
     modelOpt = trainSpark(rddTrain, gammaOpt)
     t3 = time.time()
     mseTrain = predictSpark(rddTrain, modelOpt) / nTrain
     print('The training error is ' + str(mseTrain))
-    nTest = rddLabelVectorTest.count()
+    
     # normalization and other pre-process of the test data
+    print("Testing...")
+    nTest = rddLabelVectorTest.count()
     rddTest = preprocessSpark(rddLabelVectorTest, param['foldOfCrossValid'], meanY, maxX).cache()
-    print('#===========================#')
-    print('test data g = ' + str(rddTest.count())) # avoid lazy evaluation
+    rddTest.count() # avoid lazy evaluation
+    
     # predict the labels of the test data
     t4 = time.time()
     mseTest = predictSpark(rddTest, modelOpt) / nTest
@@ -364,25 +372,8 @@ def runModelAvgSpark(rddLabelVectorTrain, rddLabelVectorTest, param):
     return result
 
 
-
-param = {'d': 90,
-         'foldOfCrossValid': 5,
-         'vecGamma': [1e-8, 1e-7, 1e-6, 1e-5, 1e-4],
-         'trainFileName': "/Users/shusenwang/Documents/RidgeRegression/resource/YearPredictionMSD",
-         'testFileName': "/Users/shusenwang/Documents/RidgeRegression/resource/YearPredictionMSD.t",
-         'numPartitions': 20
-        }
-
-
-
 if __name__ == "__main__":
-    
-    #spark = SparkSession\
-    #    .builder\
-    #    .appName("PySparkModelAvg")\
-    #    .getOrCreate()
-        
-    
+    # set Spark context
     from pyspark import SparkConf, SparkContext
     
     conf = (SparkConf()
@@ -394,16 +385,24 @@ if __name__ == "__main__":
     sc.setLogLevel("WARN")
     
     
-    rdd1 = sc.parallelize(range(100))
-    print(rdd1.glom().collect())
+    # set the parameter
+    inputDir = "/Users/shusenwang/Documents/"
+    param = {'d': 90,
+             'foldOfCrossValid': 5,
+             'vecGamma': [1e-8, 1e-7, 1e-6, 1e-5, 1e-4],
+             'trainFileName': inputDir + "RidgeRegression/resource/YearPredictionMSD",
+             'testFileName': inputDir + "RidgeRegression/resource/YearPredictionMSD.t",
+             'numPartitions': 100
+            }
     
+    print('Reading data from file...')
     # read and parse the training data
     rddLabelVectorTrain = parseRawDataSpark(param['trainFileName'], param['d'], param['numPartitions']).cache()
     # read and parse the test data
     rddLabelVectorTest = parseRawDataSpark(param['testFileName'], param['d']).cache()
 
-    a = rddLabelVectorTrain.getNumPartitions()
-    print(a)
+    numPartitions = rddLabelVectorTrain.getNumPartitions()
+    print('The number of partitions is ' + str(numPartitions))
     rddLabelVectorTrain.count()
     rddLabelVectorTest.count()
 

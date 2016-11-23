@@ -365,13 +365,7 @@ def runModelAvgSpark(rddLabelVectorTrain, rddLabelVectorTest, param):
 
 
 
-param = {'d': 90,
-         'foldOfCrossValid': 5,
-         'vecGamma': [1e-8, 1e-7, 1e-6, 1e-5, 1e-4],
-         'trainFileName': "/Users/shusenwang/Documents/RidgeRegression/resource/YearPredictionMSD.npy",
-         'testFileName': "/Users/shusenwang/Documents/RidgeRegression/resource/YearPredictionMSD.t.npy",
-         'numPartitions': 100
-        }
+
 
 
 
@@ -396,6 +390,16 @@ if __name__ == "__main__":
     
     rdd1 = sc.parallelize(range(100))
     print(rdd1.glom().collect())
+    
+    inputDir = "/Users/shusenwang/Documents/"
+    
+    param = {'d': 90,
+             'foldOfCrossValid': 5,
+             'vecGamma': [1e-8, 1e-7, 1e-6, 1e-5, 1e-4],
+             'trainFileName': inputDir + "RidgeRegression/resource/YearPredictionMSD.npy",
+             'testFileName': inputDir + "RidgeRegression/resource/YearPredictionMSD.t.npy",
+             'numPartitions': 100
+            }
     
     # read and parse the training data
     matTrain = numpy.load(param['trainFileName'])
