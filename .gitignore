@@ -1,0 +1,6 @@
+# ignore generated pdf, eps files,
+*.pdf
+*.eps
+*__pycache__
+.DS_Store
+.ipynb_checkpoints
