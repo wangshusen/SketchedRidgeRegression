@@ -7,7 +7,8 @@ def parseRawDataUtil(idxValStr):
 
 def parseRawData(rawData, d):
     labelVec = numpy.zeros(d + 1)
-    labelVec[0] = float(rawData[0][2:-1])
+    #labelVec[0] = float(rawData[0][2:-1])
+    labelVec[0] = float(rawData[0])
     vecStr = rawData[1:]
     vecIdxVal = list(map(parseRawDataUtil, vecStr))
     for idxValPair in vecIdxVal:
