@@ -2,12 +2,12 @@
 
 
 # parameters to be set
-MASTER = $SPARKURL
-NUMEXECUTORS = 63
-NUMCORES = 1
-DRIVERMEMORY = 10G
-EXECUTORMEMORY = 2G
-PYTHONFILE = $SCRATCH/SketchedRidgeRegression/main/spark/modelAvgTxtFile.py
+MASTER="$SPARKURL""
+NUMEXECUTORS="63"
+NUMCORES="1"
+DRIVERMEMORY="10G"
+EXECUTORMEMORY="2G"
+PYTHONFILE="$SCRATCH/SketchedRidgeRegression/main/spark/modelAvgTxtFile.py"
 
 
 spark-submit $PYTHONFILE \
