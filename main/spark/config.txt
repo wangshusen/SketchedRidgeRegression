@@ -1,0 +1,10 @@
+# executor-cores
+1
+# driver-memory
+2G
+# executor-memory
+2G
+# train file
+/resource/YearPredictionMSD
+# test file
+/resource/YearPredictionMSD.t

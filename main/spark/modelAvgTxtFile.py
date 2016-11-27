@@ -10,6 +10,7 @@ from pyspark.sql import SparkSession
 
 import numpy
 import time
+import os
 
 # ================ Read raw data from text file ================ #
 
@@ -44,8 +45,8 @@ def parseRawDataSpark(filename, d, numPartitions=0):
     # file to strings
     if numPartitions == 0:
         rddRawData = sc.textFile(filename)
-    elif numPartitions < 20:
-        rddRawData = sc.textFile(filename).repartition(numPartitions)
+    #elif numPartitions < 20:
+    #    rddRawData = sc.textFile(filename).repartition(numPartitions)
     else:
         rddRawData = sc.textFile(filename, minPartitions=numPartitions)
         
@@ -308,7 +309,7 @@ def predictSpark(rddTest, model):
                    .reduce(lambda a, b: a+b))
     return squaredError
     
-    
+
 
 
 def runModelAvgSpark(rddLabelVectorTrain, rddLabelVectorTest, param):
@@ -372,28 +373,46 @@ def runModelAvgSpark(rddLabelVectorTrain, rddLabelVectorTest, param):
     return result
 
 
+def parseConfig(inputDir, configFile):
+    listStr = numpy.loadtxt(inputDir + configFile, dtype='str', comments='#')
+    dirConfig = {"numExecutors": os.environ["NUM_EXECUTORS"],
+                 "executorCores": int(listStr[0][2:-1]),
+                 "driverMemory": listStr[1][2:-1],
+                 "executorMemory": listStr[2][2:-1],
+                 "trainFile": listStr[3][2:-1],
+                 "testFile": listStr[4][2:-1]
+                }
+    return dirConfig
+
+
 if __name__ == "__main__":
+    inputDir = os.environ['INPUT_DIR']
+    configFile = "/main/spark/config.txt"
+    dirConfig = parseConfig(inputDir, configFile)
+    
     # set Spark context
     from pyspark import SparkConf, SparkContext
     
     conf = (SparkConf()
-#             .setMaster("local[3]")
              .setAppName("PySparkModelAvg")
-#             .set("spark.executor.memory", "12g")
+             .set("spark.driver.memory", dirConfig["driverMemory"])
+             .set("spark.executor.memory", dirConfig["executorMemory"])
+             .set("spark.executor.cores", dirConfig["executorCores"])
+             #.set("spark.executor.instances", dirConfig["numExecutors"])
            )
     sc = SparkContext(conf = conf)
     sc.setLogLevel("WARN")
     
-    
     # set the parameter
-    inputDir = "/Users/shusenwang/Documents/"
+    inputDir = os.environ['INPUT_DIR']
     param = {'d': 90,
              'foldOfCrossValid': 5,
              'vecGamma': [1e-8, 1e-7, 1e-6, 1e-5, 1e-4],
-             'trainFileName': inputDir + "RidgeRegression/resource/YearPredictionMSD",
-             'testFileName': inputDir + "RidgeRegression/resource/YearPredictionMSD.t",
-             'numPartitions': 100
+             'trainFileName': inputDir + dirConfig["trainFile"],
+             'testFileName': inputDir + dirConfig["testFile"],
+             'numPartitions': int(dirConfig["numExecutors"])
             }
+    print(sc._conf.getAll())
     
     print('Reading data from file...')
     # read and parse the training data
@@ -412,4 +431,8 @@ if __name__ == "__main__":
     print(result)
     print('###############################')
 
+    
+    rdd1 = sc.parallelize(range(100))
+    print(rdd1.glom().collect())
+    
     sc.stop()
