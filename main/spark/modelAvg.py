@@ -1,8 +1,3 @@
-# export SPARK_HOME="$HOME/Software/spark-2.0.2"
-# MASTER=local[10] $SPARK_HOME/bin/pyspark
-# $SPARK_HOME/bin/spark-submit /Users/shusenwang/Documents/RidgeRegression/main/spark/modelAvgTxtFile.py --master local[7] 
-
-
 from __future__ import print_function
 
 import sys
@@ -152,7 +147,6 @@ def preprocessSpark(rddLabelVector, foldOfCrossValid, meanY, maxX):
     
 
 # ================ The training of ridge regression ================ #
-    
 def trainRR(matX, matY, vecGamma):
     '''
     Solve: argmin_W  1/n * || X W - Y ||_F^2 + gamma * || W ||_F^2
@@ -412,27 +406,29 @@ if __name__ == "__main__":
              'testFileName': inputDir + dirConfig["testFile"],
              'numPartitions': int(dirConfig["numExecutors"])
             }
-    print(sc._conf.getAll())
+    #print(sc._conf.getAll())
     
-    print('Reading data from file...')
+    
+    print('# ================= Reading Data from File ================= #')
     # read and parse the training data
     rddLabelVectorTrain = parseRawDataSpark(param['trainFileName'], param['d'], param['numPartitions']).cache()
     # read and parse the test data
     rddLabelVectorTest = parseRawDataSpark(param['testFileName'], param['d']).cache()
-
+    
     numPartitions = rddLabelVectorTrain.getNumPartitions()
     print('The number of partitions is ' + str(numPartitions))
     rddLabelVectorTrain.count()
     rddLabelVectorTest.count()
 
+    print('# ===================== Train and Test ===================== #')
     # run the whole procedure
     result = runModelAvgSpark(rddLabelVectorTrain, rddLabelVectorTest, param)
-    print('###############################')
-    print(result)
-    print('###############################')
-
     
-    rdd1 = sc.parallelize(range(100))
-    print(rdd1.glom().collect())
+    print('# ======================== Results ======================== #')
+    print('Time of cross-validation: ' + str(result['timeCV']))
+    print('Time of training: ' + str(result['timeTrain']))
+    print('Time of test: ' + str(result['timeTest']))
+    print('Test MSE: ' + str(result['mseTest']))
+    
     
     sc.stop()
